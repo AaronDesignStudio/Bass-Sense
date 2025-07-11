@@ -3,20 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bass Sense - Ear Training</title>
+    <title>Bass Sense - Scale Degree Ear Training</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
         <header>
             <h1>Bass Sense</h1>
-            <p class="subtitle">Train your ear to recognize bass notes</p>
+            <p class="subtitle">Train your ear to recognize scale degrees</p>
         </header>
 
         <main>
             <div class="game-info">
                 <div class="scale-info">
-                    <span id="currentScale">Loading...</span>
+                    <span id="currentScale">Press Start to begin</span>
                     <span id="scalePlayback" class="scale-playback hidden">Playing scale...</span>
                 </div>
                 <div class="progress-info">
@@ -24,14 +24,37 @@
                 </div>
             </div>
 
-            <div class="piano-container">
-                <div id="piano" class="piano"></div>
+            <div class="sound-selector">
+                <label for="bassSound">Bass Sound:</label>
+                <select id="bassSound" class="bass-sound-dropdown">
+                    <option value="deepBass">Deep Bass</option>
+                    <option value="piano">Acoustic Piano</option>
+                    <option value="synth">Synth Bass</option>
+                    <option value="electric">Electric Bass</option>
+                    <option value="sub">Sub Bass</option>
+                    <option value="warm">Warm Pad</option>
+                    <option value="pluck">Plucked Bass</option>
+                    <option value="organ">Organ Bass</option>
+                    <option value="mellow">Mellow Bass</option>
+                    <option value="vintage">Vintage Synth</option>
+                </select>
             </div>
 
+            <div class="numbers-grid">
+                <button class="number-btn" data-degree="1">1</button>
+                <button class="number-btn" data-degree="2">2</button>
+                <button class="number-btn" data-degree="3">3</button>
+                <button class="number-btn" data-degree="4">4</button>
+                <button class="number-btn" data-degree="5">5</button>
+                <button class="number-btn" data-degree="6">6</button>
+                <button class="number-btn" data-degree="7">7</button>
+                <button class="number-btn" data-degree="8">8</button>
+            </div>
+            
             <div class="controls">
-                <button id="playAgain" class="btn-secondary">Play Note Again</button>
+                <button id="startButton" class="btn-primary">Start New Game</button>
             </div>
-
+            
             <div id="sessionSummary" class="session-summary hidden">
                 <h2>Session Complete!</h2>
                 <div class="stats">
@@ -48,7 +71,6 @@
                         <span id="bestStreak" class="stat-value">0</span>
                     </div>
                 </div>
-                <button id="newSession" class="btn-primary">New Session</button>
             </div>
         </main>
     </div>
