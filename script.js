@@ -158,7 +158,7 @@ class BassSense {
                 
                 // Play the note
                 const interval = this.scales[this.currentScale.type][degree - 1];
-                const midiNote = this.currentScale.root + interval + 36;
+                const midiNote = this.currentScale.root + interval + 24;
                 const frequency = this.getFrequency(midiNote);
                 this.playBassNote(frequency, 0.4);
                 
@@ -218,7 +218,7 @@ class BassSense {
     playInterval(callback) {
         // First play the previous note
         const prevInterval = this.scales[this.currentScale.type][this.previousDegree - 1];
-        const prevMidiNote = this.currentScale.root + prevInterval + 36;
+        const prevMidiNote = this.currentScale.root + prevInterval + 24;
         const prevFrequency = this.getFrequency(prevMidiNote);
         
         this.playBassNote(prevFrequency, 0.6);
@@ -233,7 +233,7 @@ class BassSense {
     playCurrentNote() {
         // Calculate the actual note based on scale degree
         const interval = this.scales[this.currentScale.type][this.currentDegree - 1];
-        const midiNote = this.currentScale.root + interval + 36; // Start at C3 (MIDI 36)
+        const midiNote = this.currentScale.root + interval + 24; // Start at C2 (MIDI 24)
         const frequency = this.getFrequency(midiNote);
         
         this.playBassNote(frequency, 0.8);
@@ -346,25 +346,38 @@ class BassSense {
     }
     
     playFeedbackSound(correct) {
-        const oscillator = this.audioContext.createOscillator();
-        const gainNode = this.audioContext.createGain();
+        const now = this.audioContext.currentTime;
+        const osc = this.audioContext.createOscillator();
+        const gain = this.audioContext.createGain();
         
-        oscillator.connect(gainNode);
-        gainNode.connect(this.audioContext.destination);
+        osc.connect(gain);
+        gain.connect(this.audioContext.destination);
         
         if (correct) {
-            oscillator.frequency.value = 523.25; // C5
-            oscillator.type = 'triangle';
-            gainNode.gain.value = 0.2;
+            // Success sound - rising pitch from C5 to E5
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(523.25, now); // C5
+            osc.frequency.exponentialRampToValueAtTime(659.25, now + 0.1); // E5
+            
+            gain.gain.setValueAtTime(0, now);
+            gain.gain.linearRampToValueAtTime(0.2, now + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+            
+            osc.start(now);
+            osc.stop(now + 0.2);
         } else {
-            oscillator.frequency.value = 196; // G3
-            oscillator.type = 'sawtooth';
-            gainNode.gain.value = 0.1;
+            // Error sound - falling pitch
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(200, now);
+            osc.frequency.exponentialRampToValueAtTime(100, now + 0.1);
+            
+            gain.gain.setValueAtTime(0, now);
+            gain.gain.linearRampToValueAtTime(0.1, now + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+            
+            osc.start(now);
+            osc.stop(now + 0.15);
         }
-        
-        const now = this.audioContext.currentTime;
-        oscillator.start(now);
-        oscillator.stop(now + 0.1);
     }
     
     resetButtonStates() {
@@ -410,10 +423,10 @@ class BassSense {
     }
     
     preloadBassRange() {
-        // Preload bass notes from C2 to C4
-        const notesToPreload = ['C2', 'Db2', 'D2', 'Eb2', 'E2', 'F2', 'Gb2', 'G2', 'Ab2', 'A2', 'Bb2', 'B2',
-                               'C3', 'Db3', 'D3', 'Eb3', 'E3', 'F3', 'Gb3', 'G3', 'Ab3', 'A3', 'Bb3', 'B3',
-                               'C4', 'Db4', 'D4', 'Eb4', 'E4', 'F4'];
+        // Preload bass notes from C1 to C3
+        const notesToPreload = ['C1', 'Db1', 'D1', 'Eb1', 'E1', 'F1', 'Gb1', 'G1', 'Ab1', 'A1', 'Bb1', 'B1',
+                               'C2', 'Db2', 'D2', 'Eb2', 'E2', 'F2', 'Gb2', 'G2', 'Ab2', 'A2', 'Bb2', 'B2',
+                               'C3', 'Db3', 'D3', 'Eb3', 'E3', 'F3'];
         
         notesToPreload.forEach(note => {
             if (this.pianoSamples[note]) {
