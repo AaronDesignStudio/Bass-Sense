@@ -14,7 +14,9 @@ class BassSense {
         this.hintTimeout = null;
         this.isWaitingForAnswer = false;
         this.lastClickTime = 0;
-        this.selectedSound = 'deepBass';
+        this.pianoSamples = null;
+        this.samplesLoading = false;
+        this.samplesLoaded = false;
         
         this.scales = {
             major: [0, 2, 4, 5, 7, 9, 11, 12],
@@ -36,6 +38,11 @@ class BassSense {
         // Resume audio context if it's suspended (browser autoplay policy)
         if (this.audioContext.state === 'suspended') {
             this.audioContext.resume();
+        }
+        
+        // Always load piano samples
+        if (!this.samplesLoaded && !this.samplesLoading) {
+            this.loadPianoSamples();
         }
     }
     
@@ -76,10 +83,6 @@ class BassSense {
         });
         
         
-        // Bass sound selector
-        document.getElementById('bassSound').addEventListener('change', (e) => {
-            this.selectedSound = e.target.value;
-        });
     }
     
     startNewSession() {
@@ -97,11 +100,27 @@ class BassSense {
         
         this.selectRandomScale();
         
-        // Play the scale before starting
-        this.playScale(() => {
-            // Start the game after scale playback
-            setTimeout(() => this.nextNote(), 500);
-        });
+        // Wait for samples to load before playing scale
+        if (!this.samplesLoaded && this.samplesLoading) {
+            // Show loading message
+            document.getElementById('currentScale').textContent = 'Loading piano samples...';
+            
+            // Check every 100ms if samples are loaded
+            const checkInterval = setInterval(() => {
+                if (this.samplesLoaded) {
+                    clearInterval(checkInterval);
+                    document.getElementById('currentScale').textContent = `${this.currentScale.rootName} ${this.currentScale.type}`;
+                    this.playScale(() => {
+                        setTimeout(() => this.nextNote(), 500);
+                    });
+                }
+            }, 100);
+        } else {
+            // Samples already loaded or not loading, proceed normally
+            this.playScale(() => {
+                setTimeout(() => this.nextNote(), 500);
+            });
+        }
     }
     
     selectRandomScale() {
@@ -162,8 +181,8 @@ class BassSense {
             }
         };
         
-        // Start playing the scale
-        playNextNote();
+        // Start playing the scale with a small delay to ensure audio is ready
+        setTimeout(playNextNote, 200);
     }
     
     nextNote() {
@@ -225,80 +244,14 @@ class BassSense {
     }
     
     playBassNote(frequency, duration) {
-        const now = this.audioContext.currentTime;
-        const masterGain = this.audioContext.createGain();
-        
-        switch (this.selectedSound) {
-            case 'deepBass':
-                this.createDeepBass(frequency, duration, masterGain);
-                break;
-            case 'piano':
-                this.createPiano(frequency, duration, masterGain);
-                break;
-            case 'synth':
-                this.createSynthBass(frequency, duration, masterGain);
-                break;
-            case 'electric':
-                this.createElectricBass(frequency, duration, masterGain);
-                break;
-            case 'sub':
-                this.createSubBass(frequency, duration, masterGain);
-                break;
-            case 'warm':
-                this.createWarmPad(frequency, duration, masterGain);
-                break;
-            case 'pluck':
-                this.createPluckBass(frequency, duration, masterGain);
-                break;
-            case 'organ':
-                this.createOrganBass(frequency, duration, masterGain);
-                break;
-            case 'mellow':
-                this.createMellowBass(frequency, duration, masterGain);
-                break;
-            case 'vintage':
-                this.createVintageSynth(frequency, duration, masterGain);
-                break;
-            default:
-                this.createDeepBass(frequency, duration, masterGain);
+        if (this.samplesLoaded) {
+            this.playRealPianoNote(frequency, duration);
+        } else {
+            // Fall back to synthesized piano while samples are loading
+            const masterGain = this.audioContext.createGain();
+            this.createPiano(frequency, duration, masterGain);
+            masterGain.connect(this.audioContext.destination);
         }
-        
-        masterGain.connect(this.audioContext.destination);
-    }
-    
-    createDeepBass(frequency, duration, masterGain) {
-        const osc1 = this.audioContext.createOscillator();
-        const osc2 = this.audioContext.createOscillator();
-        const filter = this.audioContext.createBiquadFilter();
-        
-        osc1.type = 'sine';
-        osc1.frequency.value = frequency;
-        osc2.type = 'sine';
-        osc2.frequency.value = frequency * 0.5;
-        
-        filter.type = 'lowpass';
-        filter.frequency.value = 400;
-        
-        const gain1 = this.audioContext.createGain();
-        const gain2 = this.audioContext.createGain();
-        gain1.gain.value = 0.7;
-        gain2.gain.value = 0.3;
-        
-        osc1.connect(gain1);
-        osc2.connect(gain2);
-        gain1.connect(filter);
-        gain2.connect(filter);
-        filter.connect(masterGain);
-        
-        const now = this.audioContext.currentTime;
-        masterGain.gain.setValueAtTime(0, now);
-        masterGain.gain.linearRampToValueAtTime(0.5, now + 0.01);
-        masterGain.gain.exponentialRampToValueAtTime(0.01, now + duration);
-        
-        osc1.start(now);
-        osc2.start(now);
-        osc1.stop(now + duration);
-        osc2.stop(now + duration);
     }
     
     createPiano(frequency, duration, masterGain) {
@@ -334,237 +287,6 @@ class BassSense {
             osc.start(now);
             osc.stop(now + duration);
         });
-    }
-    
-    createSynthBass(frequency, duration, masterGain) {
-        const osc = this.audioContext.createOscillator();
-        const filter = this.audioContext.createBiquadFilter();
-        
-        osc.type = 'sawtooth';
-        osc.frequency.value = frequency;
-        
-        filter.type = 'lowpass';
-        filter.frequency.value = frequency * 2;
-        filter.Q.value = 5;
-        
-        osc.connect(filter);
-        filter.connect(masterGain);
-        
-        const now = this.audioContext.currentTime;
-        masterGain.gain.setValueAtTime(0, now);
-        masterGain.gain.linearRampToValueAtTime(0.3, now + 0.01);
-        filter.frequency.linearRampToValueAtTime(frequency * 4, now + 0.02);
-        filter.frequency.exponentialRampToValueAtTime(frequency, now + 0.1);
-        masterGain.gain.exponentialRampToValueAtTime(0.01, now + duration);
-        
-        osc.start(now);
-        osc.stop(now + duration);
-    }
-    
-    createElectricBass(frequency, duration, masterGain) {
-        const osc = this.audioContext.createOscillator();
-        const osc2 = this.audioContext.createOscillator();
-        
-        osc.type = 'triangle';
-        osc.frequency.value = frequency;
-        osc2.type = 'sine';
-        osc2.frequency.value = frequency * 2;
-        
-        const gain1 = this.audioContext.createGain();
-        const gain2 = this.audioContext.createGain();
-        gain1.gain.value = 0.8;
-        gain2.gain.value = 0.2;
-        
-        osc.connect(gain1);
-        osc2.connect(gain2);
-        gain1.connect(masterGain);
-        gain2.connect(masterGain);
-        
-        const now = this.audioContext.currentTime;
-        masterGain.gain.setValueAtTime(0, now);
-        masterGain.gain.linearRampToValueAtTime(0.4, now + 0.002);
-        masterGain.gain.exponentialRampToValueAtTime(0.2, now + 0.05);
-        masterGain.gain.exponentialRampToValueAtTime(0.01, now + duration);
-        
-        osc.start(now);
-        osc2.start(now);
-        osc.stop(now + duration);
-        osc2.stop(now + duration);
-    }
-    
-    createSubBass(frequency, duration, masterGain) {
-        const osc = this.audioContext.createOscillator();
-        const filter = this.audioContext.createBiquadFilter();
-        
-        osc.type = 'sine';
-        osc.frequency.value = frequency * 0.5;
-        
-        filter.type = 'lowpass';
-        filter.frequency.value = 200;
-        
-        osc.connect(filter);
-        filter.connect(masterGain);
-        
-        const now = this.audioContext.currentTime;
-        masterGain.gain.setValueAtTime(0, now);
-        masterGain.gain.linearRampToValueAtTime(0.6, now + 0.05);
-        masterGain.gain.exponentialRampToValueAtTime(0.01, now + duration);
-        
-        osc.start(now);
-        osc.stop(now + duration);
-    }
-    
-    createWarmPad(frequency, duration, masterGain) {
-        const oscillators = [];
-        for (let i = 0; i < 3; i++) {
-            const osc = this.audioContext.createOscillator();
-            osc.type = 'sine';
-            osc.frequency.value = frequency * (1 + i * 0.01);
-            osc.detune.value = i * 10;
-            oscillators.push(osc);
-        }
-        
-        const filter = this.audioContext.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.value = 800;
-        
-        oscillators.forEach(osc => osc.connect(filter));
-        filter.connect(masterGain);
-        
-        const now = this.audioContext.currentTime;
-        masterGain.gain.setValueAtTime(0, now);
-        masterGain.gain.linearRampToValueAtTime(0.3, now + 0.1);
-        masterGain.gain.exponentialRampToValueAtTime(0.01, now + duration);
-        
-        oscillators.forEach(osc => {
-            osc.start(now);
-            osc.stop(now + duration);
-        });
-    }
-    
-    createPluckBass(frequency, duration, masterGain) {
-        const osc = this.audioContext.createOscillator();
-        const osc2 = this.audioContext.createOscillator();
-        const filter = this.audioContext.createBiquadFilter();
-        
-        osc.type = 'triangle';
-        osc.frequency.value = frequency;
-        osc2.type = 'sine';
-        osc2.frequency.value = frequency * 2;
-        
-        filter.type = 'lowpass';
-        filter.frequency.value = frequency * 8;
-        filter.Q.value = 2;
-        
-        const gain1 = this.audioContext.createGain();
-        const gain2 = this.audioContext.createGain();
-        gain1.gain.value = 0.7;
-        gain2.gain.value = 0.3;
-        
-        osc.connect(gain1);
-        osc2.connect(gain2);
-        gain1.connect(filter);
-        gain2.connect(filter);
-        filter.connect(masterGain);
-        
-        const now = this.audioContext.currentTime;
-        masterGain.gain.setValueAtTime(0, now);
-        masterGain.gain.linearRampToValueAtTime(0.5, now + 0.001);
-        filter.frequency.exponentialRampToValueAtTime(frequency * 2, now + 0.1);
-        masterGain.gain.exponentialRampToValueAtTime(0.01, now + duration * 0.5);
-        
-        osc.start(now);
-        osc2.start(now);
-        osc.stop(now + duration);
-        osc2.stop(now + duration);
-    }
-    
-    createOrganBass(frequency, duration, masterGain) {
-        const drawbars = [0.5, 1, 1.5, 2, 3, 4, 5, 6];
-        const levels = [0.8, 0.6, 0.4, 0.3, 0.2, 0.15, 0.1, 0.05];
-        
-        drawbars.forEach((multiplier, i) => {
-            const osc = this.audioContext.createOscillator();
-            const gain = this.audioContext.createGain();
-            
-            osc.type = 'sine';
-            osc.frequency.value = frequency * multiplier;
-            gain.gain.value = levels[i];
-            
-            osc.connect(gain);
-            gain.connect(masterGain);
-            
-            const now = this.audioContext.currentTime;
-            osc.start(now);
-            osc.stop(now + duration);
-        });
-        
-        const now = this.audioContext.currentTime;
-        masterGain.gain.setValueAtTime(0, now);
-        masterGain.gain.linearRampToValueAtTime(0.3, now + 0.02);
-        masterGain.gain.exponentialRampToValueAtTime(0.01, now + duration);
-    }
-    
-    createMellowBass(frequency, duration, masterGain) {
-        const osc = this.audioContext.createOscillator();
-        const filter = this.audioContext.createBiquadFilter();
-        
-        osc.type = 'triangle';
-        osc.frequency.value = frequency;
-        
-        filter.type = 'lowpass';
-        filter.frequency.value = 600;
-        filter.Q.value = 0.5;
-        
-        osc.connect(filter);
-        filter.connect(masterGain);
-        
-        const now = this.audioContext.currentTime;
-        masterGain.gain.setValueAtTime(0, now);
-        masterGain.gain.linearRampToValueAtTime(0.4, now + 0.05);
-        masterGain.gain.exponentialRampToValueAtTime(0.2, now + 0.1);
-        masterGain.gain.exponentialRampToValueAtTime(0.01, now + duration);
-        
-        osc.start(now);
-        osc.stop(now + duration);
-    }
-    
-    createVintageSynth(frequency, duration, masterGain) {
-        const osc1 = this.audioContext.createOscillator();
-        const osc2 = this.audioContext.createOscillator();
-        const filter = this.audioContext.createBiquadFilter();
-        
-        osc1.type = 'square';
-        osc1.frequency.value = frequency;
-        osc2.type = 'square';
-        osc2.frequency.value = frequency * 1.01;
-        osc2.detune.value = 5;
-        
-        filter.type = 'lowpass';
-        filter.frequency.value = frequency * 3;
-        filter.Q.value = 8;
-        
-        const gain1 = this.audioContext.createGain();
-        const gain2 = this.audioContext.createGain();
-        gain1.gain.value = 0.5;
-        gain2.gain.value = 0.5;
-        
-        osc1.connect(gain1);
-        osc2.connect(gain2);
-        gain1.connect(filter);
-        gain2.connect(filter);
-        filter.connect(masterGain);
-        
-        const now = this.audioContext.currentTime;
-        masterGain.gain.setValueAtTime(0, now);
-        masterGain.gain.linearRampToValueAtTime(0.3, now + 0.01);
-        filter.frequency.exponentialRampToValueAtTime(frequency, now + 0.2);
-        masterGain.gain.exponentialRampToValueAtTime(0.01, now + duration);
-        
-        osc1.start(now);
-        osc2.start(now);
-        osc1.stop(now + duration);
-        osc2.stop(now + duration);
     }
     
     handleAnswer(degree) {
@@ -662,9 +384,100 @@ class BassSense {
         document.getElementById('startButton').textContent = 'Start New Game';
         document.getElementById('currentScale').textContent = 'Press Start to begin';
     }
+    
+    loadPianoSamples() {
+        this.samplesLoading = true;
+        
+        // Load the piano soundfont
+        const script = document.getElementById('pianoSoundfont');
+        script.src = 'https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_grand_piano-mp3.js';
+        
+        script.onload = () => {
+            if (window.MIDI && window.MIDI.Soundfont && window.MIDI.Soundfont.acoustic_grand_piano) {
+                this.pianoSamples = window.MIDI.Soundfont.acoustic_grand_piano;
+                this.samplesLoaded = true;
+                this.samplesLoading = false;
+                
+                // Preload bass range samples
+                this.preloadBassRange();
+            }
+        };
+        
+        script.onerror = () => {
+            console.error('Failed to load piano samples');
+            this.samplesLoading = false;
+        };
+    }
+    
+    preloadBassRange() {
+        // Preload bass notes from C2 to C4
+        const notesToPreload = ['C2', 'Db2', 'D2', 'Eb2', 'E2', 'F2', 'Gb2', 'G2', 'Ab2', 'A2', 'Bb2', 'B2',
+                               'C3', 'Db3', 'D3', 'Eb3', 'E3', 'F3', 'Gb3', 'G3', 'Ab3', 'A3', 'Bb3', 'B3',
+                               'C4', 'Db4', 'D4', 'Eb4', 'E4', 'F4'];
+        
+        notesToPreload.forEach(note => {
+            if (this.pianoSamples[note]) {
+                const audio = new Audio(this.pianoSamples[note]);
+                audio.volume = 0;
+                audio.play().catch(() => {}); // Preload by playing at volume 0
+            }
+        });
+    }
+    
+    playRealPianoNote(frequency, duration) {
+        // Convert frequency to note name
+        const noteData = this.frequencyToNote(frequency);
+        
+        if (this.pianoSamples[noteData.note]) {
+            const audio = new Audio(this.pianoSamples[noteData.note]);
+            audio.volume = 0.7;
+            
+            audio.play().catch(err => {
+                console.error('Error playing piano sample:', err);
+            });
+            
+            // Fade out by reducing volume over time
+            const fadeSteps = 20;
+            const fadeInterval = (duration * 1000) / fadeSteps;
+            let currentStep = 0;
+            
+            const fadeOut = setInterval(() => {
+                currentStep++;
+                audio.volume = 0.7 * (1 - currentStep / fadeSteps);
+                
+                if (currentStep >= fadeSteps) {
+                    clearInterval(fadeOut);
+                    audio.pause();
+                    audio.currentTime = 0;
+                }
+            }, fadeInterval);
+        } else {
+            // Fallback to synthesized piano if sample not available
+            const masterGain = this.audioContext.createGain();
+            this.createPiano(frequency, duration, masterGain);
+            masterGain.connect(this.audioContext.destination);
+        }
+    }
+    
+    frequencyToNote(frequency) {
+        // Convert frequency to MIDI note number
+        const midiNote = Math.round(12 * Math.log2(frequency / 440) + 69);
+        
+        // Convert MIDI note to note name
+        const noteNames = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+        const octave = Math.floor(midiNote / 12) - 1;
+        const noteIndex = midiNote % 12;
+        const note = noteNames[noteIndex] + octave;
+        
+        return { note, midiNote };
+    }
 }
 
 // Initialize the app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     const game = new BassSense();
+    
+    // Initialize MIDI namespace if it doesn't exist
+    window.MIDI = window.MIDI || {};
+    window.MIDI.Soundfont = window.MIDI.Soundfont || {};
 });
